@@ -1,0 +1,9 @@
+[Unit]
+Description=ZimaOS Login Demo
+
+[Service]
+ExecStart=/usr/bin/zimaos-login-demo
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
