@@ -47,6 +47,14 @@ make build
 make raw
 ```
 
+Deploy to a ZimaOS box and verify the mounted `/usr` tree:
+
+```bash
+scripts/deploy-to-zima.sh 10.0.0.85
+```
+
+The deploy script checks that `/usr/share/casaos/www/modules/zimaos-login-demo/config.js` contains the new build id after `systemd-sysext refresh`. If the mounted tree is stale, it falls back to `systemd-sysext unmerge` and `systemd-sysext merge`.
+
 `make raw` requires `mksquashfs` from `squashfs-tools`. It creates:
 
 ```text

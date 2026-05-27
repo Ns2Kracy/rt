@@ -1,44 +1,64 @@
 <!doctype html>
 <html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
-  <title>ZimaOS Login Demo</title>
-  <link rel="stylesheet" href="./styles.css?build=__BUILD_ID__">
-  <script src="./config.js?build=__BUILD_ID__"></script>
-</head>
-<body>
-  <main>
-    <h1>ZimaOS Login Demo</h1>
-    <p>frontend file: <code>web/static/index.html</code></p>
-    <p>build: <code id="build">loading</code> / version: <code id="localVersion">loading</code></p>
-    <p id="version">target version loading...</p>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta
+            http-equiv="Cache-Control"
+            content="no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+        />
+        <meta http-equiv="Pragma" content="no-cache" />
+        <meta http-equiv="Expires" content="0" />
+        <title>ZimaOS Login Demo</title>
+        <link rel="stylesheet" href="./styles.css?build=__BUILD_ID__" />
+        <script src="./config.js?build=__BUILD_ID__"></script>
+    </head>
+    <body>
+        <main>
+            <h1>ZimaOS Login Demo</h1>
+            <p>frontend file: <code>web/static/index.html</code></p>
+            <p>
+                build: <code id="build">loading</code> / version:
+                <code id="localVersion">loading</code>
+            </p>
+            <p id="version">target version loading...</p>
 
-    <form id="form">
-      <label>Username</label>
-      <input name="username" value="admin" autocomplete="username">
-      <label>Password</label>
-      <input name="password" type="password" autocomplete="current-password">
-      <button>Login with credentials include</button>
-      <div id="msg" class="out"></div>
-    </form>
+            <form id="form">
+                <label>Username</label>
+                <input name="username" value="admin" autocomplete="username" />
+                <label>Password</label>
+                <input
+                    name="password"
+                    type="password"
+                    autocomplete="current-password"
+                />
+                <button>Login with credentials include</button>
+                <div id="msg" class="out"></div>
+            </form>
 
-    <hr>
-    <label>Zima token</label>
-    <textarea id="token" placeholder="Paste token here, or open ?token=xxx / #token=xxx"></textarea>
-    <p class="hint">This static module page requests the backend route directly. It cannot read another origin's localStorage; test cookie forwarding with credentials=include, or pass token by URL/postMessage and send Authorization manually.</p>
-    <button id="probe" type="button">Probe Authorization + Cookie</button>
-    <div id="probeOut" class="out"></div>
+            <hr />
+            <label>Zima token</label>
+            <textarea
+                id="token"
+                placeholder="Paste token here, or open ?token=xxx / #token=xxx"
+            ></textarea>
+            <p class="hint">
+                This static module page requests the backend route directly. It
+                cannot read another origin's localStorage; test cookie
+                forwarding with credentials=include, or pass token by
+                URL/postMessage and send Authorization manually.
+            </p>
+            <button id="probe" type="button">
+                Probe Authorization + Cookie
+            </button>
+            <div id="probeOut" class="out"></div>
 
-    <hr>
-    <button id="connect" type="button">Connect WebSocket</button>
-    <input id="wsText" value="hello websocket">
-    <button id="send" type="button">Send WebSocket</button>
-    <div id="wslog" class="out"></div>
-  </main>
-  <script src="./app.js?build=__BUILD_ID__"></script>
-</body>
+            <hr />
+            <button id="connect" type="button">Connect WebSocket</button>
+            <input id="wsText" value="hello websocket" />
+            <button id="send" type="button">Send WebSocket</button>
+            <div id="wslog" class="out"></div>
+        </main>
+        <script src="./app.js?build=__BUILD_ID__"></script>
+    </body>
 </html>
