@@ -46,4 +46,4 @@ CasaOS
 docs/
 raw/usr/bin
 ./zimaos-login-demo
-./zimaos-login-demo.raw
+*.raw

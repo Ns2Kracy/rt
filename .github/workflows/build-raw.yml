@@ -29,10 +29,67 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y squashfs-tools
 
       - name: Test
-        run: make test
+        run: go test ./...
 
       - name: Build raw image
-        run: make raw
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          module_name="zimaos-login-demo"
+          raw_root="dist/raw-root"
+          build_id="${BUILD_ID}"
+
+          rm -rf "${raw_root}"
+          mkdir -p "${raw_root}/usr/bin"
+          mkdir -p "${raw_root}/usr/share/casaos/modules"
+          mkdir -p "${raw_root}/usr/share/casaos/www/modules/${module_name}"
+          cp -R raw/usr/lib "${raw_root}/usr/"
+          cp -R web/static/. "${raw_root}/usr/share/casaos/www/modules/${module_name}/"
+
+          sed "s/__BUILD_ID__/${build_id}/g" web/static/index.html \
+            > "${raw_root}/usr/share/casaos/www/modules/${module_name}/index.html"
+          printf 'window.DEMO_CONFIG = {buildID: "%s", localVersion: "%s"};\n' "${build_id}" "v1.0.0" \
+            > "${raw_root}/usr/share/casaos/www/modules/${module_name}/config.js"
+
+          cat > "${raw_root}/usr/share/casaos/modules/${module_name}.json" <<EOF
+          {
+            "name": "${module_name}",
+            "version": "v1.0.0",
+            "ui": {
+              "name": "${module_name}",
+              "title": {
+                "en_us": "ZimaOS Login Demo",
+                "zh_cn": "ZimaOS \u767b\u5f55\u6f14\u793a"
+              },
+              "prefetch": false,
+              "show": true,
+              "entry": "/modules/${module_name}/index.html?build=${build_id}",
+              "icon": "/modules/${module_name}/logo.svg",
+              "description": "Demo module for CasaOS and ZimaOS raw package, API, token, and WebSocket testing",
+              "formality": {
+                "type": "newtab",
+                "props": {
+                  "width": "100vh",
+                  "height": "100vh",
+                  "hasModalCard": true,
+                  "animation": "zoom-in"
+                }
+              }
+            },
+            "services": [
+              {
+                "name": "${module_name}"
+              }
+            ]
+          }
+          EOF
+
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            go build -trimpath -ldflags="-s -w -X main.buildID=${build_id}" \
+            -o "${raw_root}/usr/bin/${module_name}" .
+
+          mksquashfs "${raw_root}/" "${module_name}.raw" -noappend -no-xattrs
         env:
           BUILD_ID: ${{ github.run_number }}-${{ github.sha }}
 
