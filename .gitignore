@@ -47,3 +47,5 @@ docs/
 raw/usr/bin
 ./zimaos-login-demo
 *.raw
+node_modules
+web/static/

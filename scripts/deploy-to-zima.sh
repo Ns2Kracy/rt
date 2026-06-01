@@ -24,7 +24,7 @@ printf 'Installing raw image atomically\n'
 mv "${REMOTE_TMP}" "${REMOTE_RAW}"
 
 printf 'Refreshing sysext overlay\n'
-systemd-sysext refresh
+systemd-sysext refresh 2>&1
 
 printf 'Reloading services\n'
 systemctl daemon-reload
@@ -37,6 +37,17 @@ printf 'Verifying HTTP frontend config\n'
 curl -fsS "http://127.0.0.1/modules/${MODULE_NAME}/config.js" >/dev/null
 
 printf 'Verifying backend target-version endpoint\n'
-curl -fsS "http://127.0.0.1/v2/api/rt/target-version"
+for i in {1..10}; do
+  if curl -fsS "http://127.0.0.1/v2/api/rt/target-version" 2>/dev/null; then
+    break
+  fi
+
+  if [[ "${i}" == "10" ]]; then
+    curl -fsS "http://127.0.0.1/v2/api/rt/target-version" >/dev/null
+    exit 1
+  fi
+
+  sleep 1
+done
 printf '\nDeploy verified\n'
 REMOTE

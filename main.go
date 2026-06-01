@@ -52,15 +52,6 @@ func apiHandler() http.Handler {
 			})
 		})
 
-		r.Get("/auth-probe", func(w http.ResponseWriter, r *http.Request) {
-			writeJSON(w, map[string]any{
-				"origin":        r.Header.Get("Origin"),
-				"authorization": mask(r.Header.Get("Authorization")),
-				"cookie":        mask(r.Header.Get("Cookie")),
-				"x_zima_token":  mask(r.Header.Get("X-Zima-Token")),
-			})
-		})
-
 		r.Post("/login", func(w http.ResponseWriter, r *http.Request) {
 			var body struct {
 				Username string `json:"username"`

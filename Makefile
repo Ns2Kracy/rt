@@ -1,10 +1,13 @@
 MODULE_NAME ?= zimaos-login-demo
 GOCACHE ?= $(CURDIR)/.cache/go-build
 
-.PHONY: test build raw
+.PHONY: test frontend build raw
 
 test:
-	GOCACHE=$(GOCACHE) go test ./...
+	bun run test
+
+frontend:
+	bun run build
 
 build:
 	mkdir -p bin
