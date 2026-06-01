@@ -14,6 +14,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 )
 
 const (
@@ -24,8 +26,6 @@ const (
 	apiPrefix     = "/v2/api/rt"
 )
 
-var buildID = "dev"
-
 func main() {
 	registerGatewayRoutes()
 
@@ -34,65 +34,60 @@ func main() {
 }
 
 func apiHandler() http.Handler {
-	mux := http.NewServeMux()
+	r := chi.NewRouter()
 
-	mux.HandleFunc(apiPrefix+"/healthz", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, map[string]any{
-			"ok":       true,
-			"name":     moduleName,
-			"version":  localVersion,
-			"build_id": buildID,
-		})
-	})
-
-	mux.HandleFunc(apiPrefix+"/target-version", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, map[string]any{
-			"name":           moduleName,
-			"target_version": targetVersion,
-			"build_id":       buildID,
-		})
-	})
-
-	mux.HandleFunc(apiPrefix+"/auth-probe", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, map[string]any{
-			"origin":        r.Header.Get("Origin"),
-			"authorization": mask(r.Header.Get("Authorization")),
-			"cookie":        mask(r.Header.Get("Cookie")),
-			"x_zima_token":  mask(r.Header.Get("X-Zima-Token")),
-		})
-	})
-
-	mux.HandleFunc(apiPrefix+"/login", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		var body struct {
-			Username string `json:"username"`
-			Password string `json:"password"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, "bad json", http.StatusBadRequest)
-			return
-		}
-
-		if body.Username == "admin" && body.Password == "zimaos" {
+	r.Route(apiPrefix, func(r chi.Router) {
+		r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, map[string]any{
-				"ok":            true,
-				"message":       "login ok",
+				"ok":      true,
+				"name":    moduleName,
+				"version": localVersion,
+			})
+		})
+
+		r.Get("/target-version", func(w http.ResponseWriter, r *http.Request) {
+			writeJSON(w, map[string]any{
+				"name":           moduleName,
+				"target_version": targetVersion,
+			})
+		})
+
+		r.Get("/auth-probe", func(w http.ResponseWriter, r *http.Request) {
+			writeJSON(w, map[string]any{
+				"origin":        r.Header.Get("Origin"),
 				"authorization": mask(r.Header.Get("Authorization")),
 				"cookie":        mask(r.Header.Get("Cookie")),
+				"x_zima_token":  mask(r.Header.Get("X-Zima-Token")),
 			})
-			return
-		}
+		})
 
-		http.Error(w, "bad username or password", http.StatusUnauthorized)
+		r.Post("/login", func(w http.ResponseWriter, r *http.Request) {
+			var body struct {
+				Username string `json:"username"`
+				Password string `json:"password"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, "bad json", http.StatusBadRequest)
+				return
+			}
+
+			if body.Username == "admin" && body.Password == "zimaos" {
+				writeJSON(w, map[string]any{
+					"ok":            true,
+					"message":       "login ok",
+					"authorization": mask(r.Header.Get("Authorization")),
+					"cookie":        mask(r.Header.Get("Cookie")),
+				})
+				return
+			}
+
+			http.Error(w, "bad username or password", http.StatusUnauthorized)
+		})
+
+		r.Get("/ws", handleWebSocket)
 	})
 
-	mux.HandleFunc(apiPrefix+"/ws", handleWebSocket)
-
-	return cors(mux)
+	return cors(r)
 }
 
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
@@ -129,11 +124,10 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	hello := fmt.Sprintf(
-		"ws connected origin=%s cookie=%s query_token=%s build=%s",
+		"ws connected origin=%s cookie=%s query_token=%s",
 		r.Header.Get("Origin"),
 		mask(r.Header.Get("Cookie")),
 		mask(r.URL.Query().Get("token")),
-		buildID,
 	)
 	_ = writeWebSocketFrame(rw.Writer, 0x1, []byte(hello))
 

@@ -3,24 +3,21 @@
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta
+        <!-- <meta
             http-equiv="Cache-Control"
             content="no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
-        />
-        <meta http-equiv="Pragma" content="no-cache" />
-        <meta http-equiv="Expires" content="0" />
-        <title>ZimaOS Login Demo</title>
-        <link rel="stylesheet" href="./styles.css?build=__BUILD_ID__" />
-        <script src="./config.js?build=__BUILD_ID__"></script>
+        /> -->
+        <!-- <meta http-equiv="Pragma" content="no-cache" />
+        <meta http-equiv="Expires" content="0" /> -->
+        <title>cache-test-v3</title>
+        <link rel="stylesheet" href="./styles.css" />
+        <script src="./config.js"></script>
     </head>
     <body>
         <main>
-            <h1>ZimaOS Login Demo</h1>
+            <h1>ZimaOS Login1 Demo</h1>
             <p>frontend file: <code>web/static/index.html</code></p>
-            <p>
-                build: <code id="build">loading</code> / version:
-                <code id="localVersion">loading</code>
-            </p>
+            <!-- <p>version: <code id="localVersion">loading</code></p> -->
             <p id="version">target version loading...</p>
 
             <form id="form">
@@ -59,6 +56,6 @@
             <button id="send" type="button">Send WebSocket</button>
             <div id="wslog" class="out"></div>
         </main>
-        <script src="./app.js?build=__BUILD_ID__"></script>
+        <script src="./app.js"></script>
     </body>
 </html>

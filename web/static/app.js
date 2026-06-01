@@ -1,5 +1,4 @@
-const config = window.DEMO_CONFIG || { buildID: "static-dev", localVersion: "v0.0.0" };
-build.textContent = config.buildID;
+const config = window.DEMO_CONFIG || { localVersion: "v0.0.0" };
 localVersion.textContent = config.localVersion;
 
 const params = new URLSearchParams(location.search);
@@ -30,7 +29,7 @@ function authHeaders() {
 fetch(api + "/target-version", { credentials: "include", cache: "no-store" })
   .then((r) => r.json())
   .then((v) => {
-    version.textContent = "target version: " + v.target_version + " / api build: " + v.build_id;
+    version.textContent = "target version: " + v.target_version;
   })
   .catch(() => {
     version.textContent = "target version unavailable";

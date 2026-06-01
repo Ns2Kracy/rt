@@ -2,23 +2,22 @@
 set -euo pipefail
 
 MODULE_NAME="zimaos-login-demo"
-RAW_DIR="${RAW_DIR:-raw}"
+SKELETON_DIR="${SKELETON_DIR:-raw}"
+RAW_DIR="${RAW_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/${MODULE_NAME}-raw-root.XXXXXX")}"
 OUT="${OUT:-${MODULE_NAME}.raw}"
 GOOS_VALUE="${GOOS:-linux}"
 GOARCH_VALUE="${GOARCH:-amd64}"
 GOCACHE="${GOCACHE:-$(pwd)/.cache/go-build}"
-BUILD_ID="${BUILD_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
 
+rm -rf "${RAW_DIR}/usr/bin" "${RAW_DIR}/usr/share"
 mkdir -p "${RAW_DIR}/usr/bin"
 mkdir -p "${RAW_DIR}/usr/share/casaos/modules"
-rm -rf "${RAW_DIR}/usr/share/casaos/www/modules/${MODULE_NAME}"
 mkdir -p "${RAW_DIR}/usr/share/casaos/www/modules/${MODULE_NAME}"
 mkdir -p "${GOCACHE}"
 
+cp -R "${SKELETON_DIR}/usr/lib" "${RAW_DIR}/usr/"
 cp -R web/static/. "${RAW_DIR}/usr/share/casaos/www/modules/${MODULE_NAME}/"
-sed "s/__BUILD_ID__/${BUILD_ID}/g" web/static/index.html \
-  > "${RAW_DIR}/usr/share/casaos/www/modules/${MODULE_NAME}/index.html"
-printf 'window.DEMO_CONFIG = {buildID: "%s", localVersion: "%s"};\n' "${BUILD_ID}" "v1.0.0" \
+printf 'window.DEMO_CONFIG = {localVersion: "%s"};\n' "v1.0.0" \
   > "${RAW_DIR}/usr/share/casaos/www/modules/${MODULE_NAME}/config.js"
 
 manifest="${RAW_DIR}/usr/share/casaos/modules/${MODULE_NAME}.json"
@@ -34,7 +33,7 @@ cat > "${manifest}" <<EOF
     },
     "prefetch": false,
     "show": true,
-    "entry": "/modules/${MODULE_NAME}/index.html?build=${BUILD_ID}",
+    "entry": "/modules/${MODULE_NAME}/index.html",
     "icon": "/modules/${MODULE_NAME}/logo.svg",
     "description": "Demo module for CasaOS and ZimaOS raw package, API, token, and WebSocket testing",
     "formality": {
@@ -56,7 +55,7 @@ cat > "${manifest}" <<EOF
 EOF
 
 CGO_ENABLED=0 GOCACHE="${GOCACHE}" GOOS="${GOOS_VALUE}" GOARCH="${GOARCH_VALUE}" \
-  go build -trimpath -ldflags="-s -w -X main.buildID=${BUILD_ID}" \
+  go build -trimpath -ldflags="-s -w" \
   -o "${RAW_DIR}/usr/bin/${MODULE_NAME}" .
 
 if ! command -v mksquashfs >/dev/null 2>&1; then
@@ -67,3 +66,4 @@ fi
 rm -f "${OUT}"
 mksquashfs "${RAW_DIR}/" "${OUT}" -noappend -no-xattrs
 printf 'Created %s\n' "${OUT}"
+
