@@ -48,4 +48,6 @@ raw/usr/bin
 ./zimaos-login-demo
 *.raw
 node_modules
+
+# Frontend build output
 web/static/
