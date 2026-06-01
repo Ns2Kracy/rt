@@ -1,0 +1,30 @@
+{
+  "name": "zimaos-login-demo",
+  "version": "v1.0.0",
+  "ui": {
+    "name": "zimaos-login-demo",
+    "title": {
+      "en_us": "ZimaOS Login Demo",
+      "zh_cn": "ZimaOS \u767b\u5f55\u6f14\u793a"
+    },
+    "prefetch": false,
+    "show": true,
+    "entry": "/modules/zimaos-login-demo/index.html",
+    "icon": "/modules/zimaos-login-demo/logo.svg",
+    "description": "Demo module for CasaOS and ZimaOS raw package, API, token, and WebSocket testing",
+    "formality": {
+      "type": "newtab",
+      "props": {
+        "width": "100vh",
+        "height": "100vh",
+        "hasModalCard": true,
+        "animation": "zoom-in"
+      }
+    }
+  },
+  "services": [
+    {
+      "name": "zimaos-login-demo"
+    }
+  ]
+}
