@@ -3,7 +3,6 @@ import { defineConfig } from 'vitest/config'
 import solid from 'vite-plugin-solid'
 
 export default defineConfig({
-  root: 'web',
   base: './',
   publicDir: 'public',
   resolve: {

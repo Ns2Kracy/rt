@@ -8,7 +8,7 @@ export interface TargetVersionResponse {
 }
 
 function isGatewayPath(pathname: string): boolean {
-  return pathname.startsWith('/modules/') || pathname.startsWith('/zimaos-login-demo')
+  return pathname.startsWith('/modules/') || pathname === '/rt' || pathname.startsWith('/rt/')
 }
 
 export function getAPIBaseURL(location: Location = globalThis.location): string {

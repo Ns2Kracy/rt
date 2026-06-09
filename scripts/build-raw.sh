@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-MODULE_NAME="zimaos-login-demo"
+MODULE_NAME="rt"
 SKELETON_DIR="${SKELETON_DIR:-raw}"
 RAW_DIR="${RAW_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/${MODULE_NAME}-raw-root.XXXXXX")}"
 OUT="${OUT:-${MODULE_NAME}.raw}"
@@ -15,10 +15,10 @@ if ! command -v bun >/dev/null 2>&1; then
   exit 127
 fi
 
-if [ -f bun.lock ]; then
-  bun install --frozen-lockfile
+if [ -f web/bun.lock ]; then
+  (cd web && bun install --frozen-lockfile)
 else
-  bun install
+  (cd web && bun install)
 fi
 
 rm -rf "${RAW_DIR}/usr/bin" "${RAW_DIR}/usr/share"
@@ -27,7 +27,7 @@ mkdir -p "${FRONTEND_OUT_DIR}"
 mkdir -p "${GOCACHE}"
 
 cp -R "${SKELETON_DIR}/usr/." "${RAW_DIR}/usr/"
-bun run build -- --outDir "${FRONTEND_OUT_DIR}"
+(cd web && bun run build -- --outDir "${FRONTEND_OUT_DIR}")
 printf 'window.DEMO_CONFIG = {localVersion: "%s"};\n' "v1.0.0" \
   > "${FRONTEND_OUT_DIR}/config.js"
 

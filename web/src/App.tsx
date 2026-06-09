@@ -206,9 +206,12 @@ export default function App() {
     <main class="mx-auto flex min-h-dvh w-full max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
       <header class="flex flex-col gap-4 border-b border-slate-200 pb-5 md:flex-row md:items-center md:justify-between">
         <div class="flex min-w-0 items-center gap-3">
-          <img class="h-12 w-12 rounded-lg" src="./logo.svg" alt="ZimaOS Login Demo" />
+          <img class="h-12 w-12 rounded-lg" src="./logo.svg" alt="Mod Management Playground" />
           <div class="min-w-0">
-            <h1 class="text-2xl font-semibold tracking-normal text-slate-950">ZimaOS Login Demo</h1>
+            <h1 class="text-2xl font-semibold tracking-normal text-slate-950">Mod Management Playground</h1>
+            <p class="mt-1 text-sm text-slate-600">
+              A playground for mod management scenarios, experiments, and integrations.
+            </p>
           </div>
         </div>
         <div class="flex flex-wrap items-center gap-2">
@@ -226,8 +229,8 @@ export default function App() {
         <div class="rounded-lg border border-slate-200 bg-white p-4">
           <div class="flex items-start justify-between gap-3">
             <div>
-              <h2 class="text-base font-semibold text-slate-950">WebUI Session</h2>
-              <p class="mt-1 text-sm text-slate-600">Token source: browser localStorage</p>
+              <h2 class="text-base font-semibold text-slate-950">Mod WebUI Session</h2>
+              <p class="mt-1 text-sm text-slate-600">Token context for mod management flows</p>
             </div>
             <Icon icon={KeyRound} class="h-5 w-5 text-teal-700" />
           </div>
@@ -266,8 +269,8 @@ export default function App() {
         <div class="rounded-lg border border-slate-200 bg-white p-4">
         <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
-            <h2 class="text-base font-semibold text-slate-950">WebSocket Echo</h2>
-            <p class="mt-1 text-sm text-slate-600">Connection state: {socketState()}</p>
+            <h2 class="text-base font-semibold text-slate-950">Mod Integration Probe</h2>
+            <p class="mt-1 text-sm text-slate-600">Probe connection state: {socketState()}</p>
           </div>
           <span
             class={[

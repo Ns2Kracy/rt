@@ -308,7 +308,7 @@ export function shouldAutoRedirectToLogin(pathname: string, config: DemoConfig =
     return false
   }
 
-  return pathname.startsWith('/modules/') || pathname.startsWith('/zimaos-login-demo')
+  return pathname.startsWith('/modules/') || pathname === '/rt' || pathname.startsWith('/rt/')
 }
 
 export function maskToken(value: string | null): string {

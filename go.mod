@@ -1,4 +1,4 @@
-module zimaos-login-demo
+module rt
 
 go 1.23
 

@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	moduleName    = "zimaos-login-demo"
+	moduleName    = "rt"
 	localVersion  = "v1.0.0"
 	targetVersion = "v1.0.1"
 	apiAddr       = ":49321"

@@ -1,0 +1,30 @@
+{
+  "name": "rt",
+  "version": "v1.0.0",
+  "ui": {
+    "name": "rt",
+    "title": {
+      "en_us": "Mod Management Playground",
+      "zh_cn": "Mod \u7ba1\u7406 Playground"
+    },
+    "prefetch": false,
+    "show": true,
+    "entry": "/modules/rt/index.html",
+    "icon": "/modules/rt/logo.svg",
+    "description": "Playground for mod management scenarios, experiments, and integrations",
+    "formality": {
+      "type": "newtab",
+      "props": {
+        "width": "100vh",
+        "height": "100vh",
+        "hasModalCard": true,
+        "animation": "zoom-in"
+      }
+    }
+  },
+  "services": [
+    {
+      "name": "rt"
+    }
+  ]
+}

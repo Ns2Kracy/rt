@@ -2,7 +2,7 @@
 set -euo pipefail
 
 HOST="${1:-10.0.0.85}"
-MODULE_NAME="zimaos-login-demo"
+MODULE_NAME="rt"
 RAW_FILE="${RAW_FILE:-${MODULE_NAME}.raw}"
 REMOTE_RAW="/var/lib/extensions/${MODULE_NAME}.raw"
 REMOTE_TMP="/var/lib/extensions/${MODULE_NAME}.raw.next"

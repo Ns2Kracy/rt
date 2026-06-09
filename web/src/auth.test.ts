@@ -49,15 +49,17 @@ describe('auth URL helpers', () => {
   })
 
   it('uses the ZimaOS hash login route by default', () => {
-    const loginURL = buildLoginURL('http://10.0.0.85/modules/zimaos-login-demo/index.html')
+    const loginURL = buildLoginURL('http://10.0.0.85/modules/rt/index.html')
 
     expect(loginURL).toBe(
-      'http://10.0.0.85/#/login?redirect=http%3A%2F%2F10.0.0.85%2Fmodules%2Fzimaos-login-demo%2Findex.html',
+      'http://10.0.0.85/#/login?redirect=http%3A%2F%2F10.0.0.85%2Fmodules%2Frt%2Findex.html',
     )
   })
 
   it('only auto redirects deployed module paths by default', () => {
-    expect(shouldAutoRedirectToLogin('/modules/zimaos-login-demo/index.html')).toBe(true)
+    expect(shouldAutoRedirectToLogin('/modules/rt/index.html')).toBe(true)
+    expect(shouldAutoRedirectToLogin('/rt/index.html')).toBe(true)
+    expect(shouldAutoRedirectToLogin('/rt-preview/index.html')).toBe(false)
     expect(shouldAutoRedirectToLogin('/src/main.tsx')).toBe(false)
     expect(shouldAutoRedirectToLogin('/modules/demo/index.html', { autoLogin: false })).toBe(false)
   })

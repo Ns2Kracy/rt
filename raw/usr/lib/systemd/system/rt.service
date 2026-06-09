@@ -1,8 +1,8 @@
 [Unit]
-Description=ZimaOS Login Demo
+Description=Mod Management Playground
 
 [Service]
-ExecStart=/usr/bin/zimaos-login-demo
+ExecStart=/usr/bin/rt
 Restart=always
 
 [Install]
