@@ -28,7 +28,7 @@ mkdir -p "${GOCACHE}"
 
 cp -R "${SKELETON_DIR}/usr/." "${RAW_DIR}/usr/"
 (cd web && bun run build -- --outDir "${FRONTEND_OUT_DIR}")
-printf 'window.DEMO_CONFIG = {localVersion: "%s"};\n' "v1.0.0" \
+printf 'window.DEMO_CONFIG = {localVersion: "%s"};\n' "v1.0.1" \
   > "${FRONTEND_OUT_DIR}/config.js"
 
 CGO_ENABLED=0 GOCACHE="${GOCACHE}" GOOS="${GOOS_VALUE}" GOARCH="${GOARCH_VALUE}" \

@@ -3,6 +3,7 @@ import {
   LogIn,
   LogOut,
   PlugZap,
+  RefreshCw,
   Send,
   ShieldCheck,
   Wifi,
@@ -32,6 +33,7 @@ declare global {
 
 type AuthStatus = 'checking' | 'authenticated' | 'missing' | 'redirecting'
 type SocketState = 'closed' | 'connecting' | 'open' | 'error'
+type UpdateState = 'checking' | 'available' | 'current'
 
 function StatusPill(props: { status: AuthStatus }) {
   const label = createMemo(() => {
@@ -105,6 +107,21 @@ export default function App() {
   const expiresAt = createMemo(() => {
     authRevision()
     return getExpiresAt() ?? 'not provided'
+  })
+  const updateState = createMemo<UpdateState>(() => {
+    const target = targetVersion()?.target_version
+    if (!target) return 'checking'
+    return target === localVersion() ? 'current' : 'available'
+  })
+  const updateLabel = createMemo(() => {
+    switch (updateState()) {
+      case 'available':
+        return 'Update available'
+      case 'current':
+        return 'Up to date'
+      default:
+        return 'Checking update'
+    }
   })
 
   async function loadTargetVersion() {
@@ -216,6 +233,19 @@ export default function App() {
         </div>
         <div class="flex flex-wrap items-center gap-2">
           <StatusPill status={authStatus()} />
+          <span
+            class={[
+              'inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-xs font-semibold',
+              {
+                'border-amber-200 bg-amber-50 text-amber-900': updateState() === 'available',
+                'border-emerald-200 bg-emerald-50 text-emerald-800': updateState() === 'current',
+                'border-slate-200 bg-slate-50 text-slate-700': updateState() === 'checking',
+              },
+            ]}
+          >
+            <Icon icon={RefreshCw} class="h-3.5 w-3.5" />
+            {updateLabel()}
+          </span>
           <span class="inline-flex h-7 items-center rounded-md border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700">
             local {localVersion()}
           </span>

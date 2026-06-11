@@ -20,7 +20,7 @@ import (
 
 const (
 	moduleName    = "rt"
-	localVersion  = "v1.0.0"
+	localVersion  = "v1.0.1"
 	targetVersion = "v1.0.1"
 	apiAddr       = ":49321"
 	apiPrefix     = "/v2/api/rt"
