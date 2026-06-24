@@ -30,6 +30,10 @@ export function getWebSocketURL(location: Location = globalThis.location): strin
   return `ws://${location.hostname}:49321/v2/api/rt/ws`
 }
 
+export function getMessageBusEventsURL(location: Location = globalThis.location): string {
+  return `${getAPIBaseURL(location).replace(/\/$/, '')}/message-bus/events`
+}
+
 export function createAPIClient(onLogout?: () => void) {
   const instance = axios.create({
     baseURL: getAPIBaseURL(),

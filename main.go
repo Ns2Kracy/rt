@@ -34,6 +34,10 @@ func main() {
 }
 
 func apiHandler() http.Handler {
+	return apiHandlerWithMessageBusHub(defaultMessageBusHub)
+}
+
+func apiHandlerWithMessageBusHub(messageBus *messageBusHub) http.Handler {
 	r := chi.NewRouter()
 
 	r.Route(apiPrefix, func(r chi.Router) {
@@ -76,6 +80,9 @@ func apiHandler() http.Handler {
 		})
 
 		r.Get("/ws", handleWebSocket)
+		r.Get("/message-bus/events", func(w http.ResponseWriter, r *http.Request) {
+			handleMessageBusEvents(w, r, messageBus)
+		})
 	})
 
 	return cors(r)
