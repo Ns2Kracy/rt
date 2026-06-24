@@ -529,12 +529,12 @@ export default function App() {
                   </button>
                 </div>
 
-                <div class="grid min-h-[34rem] flex-1 gap-4 lg:grid-cols-[minmax(22rem,0.82fr)_minmax(0,1.18fr)]">
+                <div class="flex min-h-[34rem] flex-1 flex-col gap-4">
                   <div class="overflow-hidden rounded-md border border-slate-200 bg-white">
                     <div class="border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">
                       Showing {filteredMessageBusEvents().length} events
                     </div>
-                    <div class="max-h-[34rem] overflow-auto lg:max-h-[calc(100dvh-18rem)]">
+                    <div class="max-h-[30rem] overflow-auto">
                       <Show
                         when={filteredMessageBusEvents().length > 0}
                         fallback={
@@ -580,9 +580,9 @@ export default function App() {
                   <div class="rounded-md border border-slate-200 bg-white">
                     <div class="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2">
                       <div class="min-w-0">
-                        <div class="truncate text-xs font-semibold text-slate-600">Selected event</div>
+                        <div class="truncate text-xs font-semibold text-slate-600">Event detail</div>
                         <div class="truncate text-sm font-semibold text-slate-950">
-                          {selectedMessageBusEvent()?.eventName ?? 'none'}
+                          {selectedMessageBusEvent()?.eventName ?? 'Select an event'}
                         </div>
                       </div>
                       <Show when={selectedMessageBusEvent()}>
@@ -593,9 +593,20 @@ export default function App() {
                         )}
                       </Show>
                     </div>
-                    <pre class="max-h-[34rem] min-h-80 overflow-auto p-3 text-xs leading-5 whitespace-pre-wrap wrap-break-word text-slate-800 lg:max-h-[calc(100dvh-18rem)]">
-                      {selectedMessageBusEvent() ? stringifyMessageBusPayload(selectedMessageBusEvent() as MessageBusEvent) : 'No event selected'}
-                    </pre>
+                    <Show
+                      when={selectedMessageBusEvent()}
+                      fallback={
+                        <div class="flex min-h-40 items-center justify-center px-4 text-center text-sm text-slate-500">
+                          Click an event above to inspect the full payload.
+                        </div>
+                      }
+                    >
+                      {event => (
+                        <pre class="max-h-[28rem] min-h-40 overflow-auto p-3 text-xs leading-5 whitespace-pre-wrap wrap-break-word text-slate-800">
+                          {stringifyMessageBusPayload(event())}
+                        </pre>
+                      )}
+                    </Show>
                   </div>
                 </div>
               </section>
