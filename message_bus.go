@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -180,6 +182,70 @@ func (h *messageBusHub) connect(ctx context.Context) error {
 
 	<-ctx.Done()
 	return ctx.Err()
+}
+
+func handleMessageBusEvents(w http.ResponseWriter, r *http.Request, hub *messageBusHub) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		return
+	}
+
+	if r.Context().Err() == nil {
+		hub.start(context.Background())
+	}
+
+	history, events, unsubscribe := hub.subscribe()
+	defer unsubscribe()
+
+	for _, event := range history {
+		if err := writeMessageBusSSE(w, flusher, event); err != nil {
+			return
+		}
+	}
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case event, ok := <-events:
+			if !ok {
+				return
+			}
+			if err := writeMessageBusSSE(w, flusher, event); err != nil {
+				return
+			}
+		}
+	}
+}
+
+func writeMessageBusSSE(w http.ResponseWriter, flusher http.Flusher, event MessageBusEvent) error {
+	data, err := json.Marshal(event)
+	if err != nil {
+		return err
+	}
+
+	var frame bytes.Buffer
+	if event.ID != "" {
+		fmt.Fprintf(&frame, "id: %s\n", event.ID)
+	}
+	frame.WriteString("event: message-bus\n")
+	for _, line := range bytes.Split(data, []byte("\n")) {
+		frame.WriteString("data: ")
+		frame.Write(line)
+		frame.WriteByte('\n')
+	}
+	frame.WriteByte('\n')
+
+	if _, err := w.Write(frame.Bytes()); err != nil {
+		return err
+	}
+	flusher.Flush()
+	return nil
 }
 
 func normalizeMessageBusEvent(eventName string, payload map[string]any) MessageBusEvent {

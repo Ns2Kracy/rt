@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -68,6 +69,26 @@ func TestAPIHandlerLogin(t *testing.T) {
 				t.Fatalf("status = %d, want %d, body: %s", rec.Code, tt.status, rec.Body.String())
 			}
 		})
+	}
+}
+
+func TestAPIHandlerMessageBusEvents(t *testing.T) {
+	hub := newMessageBusHub(2)
+	handler := apiHandlerWithMessageBusHub(hub)
+
+	req := httptest.NewRequest(http.MethodGet, apiPrefix+"/message-bus/events", nil)
+	ctx, cancel := context.WithCancel(req.Context())
+	cancel()
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body: %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if got := rec.Header().Get("Content-Type"); got != "text/event-stream" {
+		t.Fatalf("content-type = %q, want text/event-stream", got)
 	}
 }
 
