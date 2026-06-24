@@ -108,7 +108,7 @@ func (h *messageBusHub) run(ctx context.Context) {
 			return
 		}
 
-		if err := h.connect(ctx); err != nil {
+		if err := h.connect(ctx); err != nil && ctx.Err() == nil {
 			h.publish(newMessageBusStatusEvent("error", "error", err.Error()))
 		}
 
@@ -162,26 +162,34 @@ func (h *messageBusHub) connect(ctx context.Context) error {
 	}
 	defer client.Close()
 
+	attemptCtx, cancelAttempt := context.WithCancel(ctx)
+	defer cancelAttempt()
+
 	client.On("connect", func([]interface{}) {
 		h.publish(newMessageBusStatusEvent("connected", "info", rawURL))
 	})
 	client.On("disconnect", func([]interface{}) {
 		h.publish(newMessageBusStatusEvent("disconnected", "status", rawURL))
+		cancelAttempt()
 	})
 	client.On("error", func(args []interface{}) {
 		h.publish(newMessageBusStatusEvent("error", "error", fmt.Sprintf("%v", args)))
+		cancelAttempt()
 	})
 	client.OnAny(func(eventName string, args []interface{}) {
 		payload := payloadMapFromSocketIOArgs(args)
 		h.publish(normalizeMessageBusEvent(eventName, payload))
 	})
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(attemptCtx); err != nil {
 		return err
 	}
 
-	<-ctx.Done()
-	return ctx.Err()
+	<-attemptCtx.Done()
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	return fmt.Errorf("message bus disconnected")
 }
 
 func handleMessageBusEvents(w http.ResponseWriter, r *http.Request, hub *messageBusHub) {
