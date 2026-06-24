@@ -158,3 +158,28 @@ func TestMessageBusURLFromBase(t *testing.T) {
 		t.Fatalf("url = %q, want %q", got, want)
 	}
 }
+
+func TestMessageBusSocketIOURLFromBase(t *testing.T) {
+	got := messageBusSocketIOURLFromBase("127.0.0.1:36677")
+	want := "http://127.0.0.1:36677/v2/message_bus/socket.io"
+
+	if got != want {
+		t.Fatalf("url = %q, want %q", got, want)
+	}
+}
+
+func TestMessageBusHubHistoryLimit(t *testing.T) {
+	hub := newMessageBusHub(2)
+
+	hub.publish(MessageBusEvent{ID: "1", EventName: "one"})
+	hub.publish(MessageBusEvent{ID: "2", EventName: "two"})
+	hub.publish(MessageBusEvent{ID: "3", EventName: "three"})
+
+	events := hub.snapshot()
+	if len(events) != 2 {
+		t.Fatalf("len(events) = %d, want 2", len(events))
+	}
+	if events[0].ID != "2" || events[1].ID != "3" {
+		t.Fatalf("events = %#v, want IDs 2 and 3", events)
+	}
+}
