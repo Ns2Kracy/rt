@@ -1,0 +1,6 @@
+export type AuthStatus = 'checking' | 'authenticated' | 'missing' | 'redirecting'
+export type SocketState = 'closed' | 'connecting' | 'open' | 'error'
+export type UpdateState = 'checking' | 'available' | 'current'
+export type MessageBusStreamState = 'closed' | 'connecting' | 'open' | 'error'
+export type RecorderState = 'idle' | 'requesting' | 'recording' | 'ready' | 'unsupported' | 'error'
+export type WorkspaceView = 'message-bus' | 'recorder' | 'session' | 'probe'
