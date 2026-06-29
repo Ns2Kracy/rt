@@ -6,8 +6,8 @@ Minimal ZimaOS raw module playground for mod management scenarios, experiments, 
 
 - Module name: `rt`
 - UI title: Mod Management Playground
-- Installed version in raw manifest: `v1.0.1`
-- Target version API response: `v1.0.1`
+- Installed version in raw manifest: `v1.0.6`
+- Target version API response: `v1.0.6`
 - API port: `49321`
 - API and WebSocket prefix: `/v2/api/rt`
 - Frontend entry: `/modules/rt/index.html`
@@ -107,7 +107,7 @@ Common tags:
 ```text
 latest
 main
-v1.0.1
+v1.0.6
 sha-<commit>
 ```
 
