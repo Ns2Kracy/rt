@@ -3,15 +3,24 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha1"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"log"
+	"math/big"
+	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -26,15 +35,293 @@ const (
 	apiPrefix     = "/v2/api/rt"
 )
 
+type serverConfig struct {
+	HTTPAddr           string
+	HTTPSAddr          string
+	EnableHTTPS        bool
+	CertFile           string
+	KeyFile            string
+	AutoSelfSignedCert bool
+	PublicHosts        []string
+	StaticDir          string
+}
+
 func main() {
 	registerGatewayRoutes()
 
-	log.Printf("api listening on %s", apiAddr)
-	log.Fatal(http.ListenAndServe(apiAddr, apiHandler()))
+	config := loadServerConfig()
+	log.Fatal(serve(config, appHandler(config.StaticDir)))
 }
 
 func apiHandler() http.Handler {
 	return apiHandlerWithMessageBusHub(defaultMessageBusHub)
+}
+
+func appHandler(staticDir string) http.Handler {
+	mux := http.NewServeMux()
+	api := apiHandler()
+	mux.Handle(apiPrefix, api)
+	mux.Handle(apiPrefix+"/", api)
+	mux.Handle("/", frontendHandler(staticDir))
+	return mux
+}
+
+func frontendHandler(staticDir string) http.Handler {
+	if strings.TrimSpace(staticDir) == "" {
+		return http.NotFoundHandler()
+	}
+
+	fileServer := http.FileServer(http.Dir(staticDir))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/":
+			http.Redirect(w, r, "/modules/"+moduleName+"/index.html", http.StatusFound)
+			return
+		case "/modules/" + moduleName:
+			http.Redirect(w, r, "/modules/"+moduleName+"/", http.StatusFound)
+			return
+		case "/modules/" + moduleName + "/", "/modules/" + moduleName + "/index.html":
+			serveIndexFile(w, r, filepath.Join(staticDir, "index.html"))
+			return
+		}
+
+		if !strings.HasPrefix(r.URL.Path, "/modules/"+moduleName+"/") {
+			http.NotFound(w, r)
+			return
+		}
+
+		http.StripPrefix("/modules/"+moduleName+"/", fileServer).ServeHTTP(w, r)
+	})
+}
+
+func serveIndexFile(w http.ResponseWriter, r *http.Request, path string) {
+	file, err := os.Open(path)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer file.Close()
+
+	info, err := file.Stat()
+	if err != nil || info.IsDir() {
+		http.NotFound(w, r)
+		return
+	}
+
+	http.ServeContent(w, r, "index.html", info.ModTime(), file)
+}
+
+func loadServerConfig() serverConfig {
+	dataDir := envString("RT_DATA_DIR", "data")
+	return serverConfig{
+		HTTPAddr:           envString("RT_HTTP_ADDR", apiAddr),
+		HTTPSAddr:          envString("RT_HTTPS_ADDR", ":49322"),
+		EnableHTTPS:        envBool("RT_ENABLE_HTTPS", false),
+		CertFile:           envString("RT_CERT_FILE", filepath.Join(dataDir, "certs", moduleName+".crt")),
+		KeyFile:            envString("RT_KEY_FILE", filepath.Join(dataDir, "certs", moduleName+".key")),
+		AutoSelfSignedCert: envBool("RT_AUTO_SELF_SIGNED_CERT", true),
+		PublicHosts:        envList("RT_PUBLIC_HOSTS"),
+		StaticDir:          defaultStaticDir(),
+	}
+}
+
+func defaultStaticDir() string {
+	if value := strings.TrimSpace(os.Getenv("RT_STATIC_DIR")); value != "" {
+		return value
+	}
+
+	candidates := []string{
+		filepath.Join("web", "static"),
+		filepath.Join("/usr/share/casaos/www/modules", moduleName),
+	}
+	for _, candidate := range candidates {
+		if _, err := os.Stat(filepath.Join(candidate, "index.html")); err == nil {
+			return candidate
+		}
+	}
+	return candidates[0]
+}
+
+func envString(name string, fallback string) string {
+	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+		return value
+	}
+	return fallback
+}
+
+func envBool(name string, fallback bool) bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv(name)))
+	if value == "" {
+		return fallback
+	}
+	switch value {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return fallback
+	}
+}
+
+func envList(name string) []string {
+	parts := strings.Split(os.Getenv(name), ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		value := strings.TrimSpace(part)
+		if value != "" {
+			values = append(values, value)
+		}
+	}
+	return values
+}
+
+func serve(config serverConfig, handler http.Handler) error {
+	errs := make(chan error, 2)
+	listeners := 0
+
+	if strings.TrimSpace(config.HTTPAddr) != "" {
+		listeners++
+		go func() {
+			log.Printf("http listening on %s", config.HTTPAddr)
+			errs <- http.ListenAndServe(config.HTTPAddr, handler)
+		}()
+	}
+
+	if config.EnableHTTPS {
+		if err := ensureTLSCertificate(config); err != nil {
+			return err
+		}
+
+		listeners++
+		go func() {
+			server := http.Server{
+				Addr:      config.HTTPSAddr,
+				Handler:   handler,
+				TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12},
+			}
+			log.Printf("https listening on %s", config.HTTPSAddr)
+			errs <- server.ListenAndServeTLS(config.CertFile, config.KeyFile)
+		}()
+	}
+
+	if listeners == 0 {
+		return fmt.Errorf("no http or https listener configured")
+	}
+	return <-errs
+}
+
+func ensureTLSCertificate(config serverConfig) error {
+	if fileExists(config.CertFile) && fileExists(config.KeyFile) {
+		return nil
+	}
+	if !config.AutoSelfSignedCert {
+		return fmt.Errorf("tls certificate files are missing and self-signed generation is disabled")
+	}
+	return generateSelfSignedCertificate(config.CertFile, config.KeyFile, config.PublicHosts)
+}
+
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
+}
+
+func generateSelfSignedCertificate(certFile string, keyFile string, publicHosts []string) error {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return err
+	}
+
+	serialLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	serialNumber, err := rand.Int(rand.Reader, serialLimit)
+	if err != nil {
+		return err
+	}
+
+	dnsNames, ipAddresses := certificateHosts(publicHosts)
+	template := x509.Certificate{
+		SerialNumber: serialNumber,
+		Subject: pkix.Name{
+			CommonName: moduleName + " self-signed",
+		},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().AddDate(10, 0, 0),
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		DNSNames:              dnsNames,
+		IPAddresses:           ipAddresses,
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &privateKey.PublicKey, privateKey)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(filepath.Dir(certFile), 0o755); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(keyFile), 0o755); err != nil {
+		return err
+	}
+
+	certOut, err := os.OpenFile(certFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	if err != nil {
+		return err
+	}
+	if err := pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: certDER}); err != nil {
+		_ = certOut.Close()
+		return err
+	}
+	if err := certOut.Close(); err != nil {
+		return err
+	}
+
+	keyOut, err := os.OpenFile(keyFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	keyDER := x509.MarshalPKCS1PrivateKey(privateKey)
+	if err := pem.Encode(keyOut, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: keyDER}); err != nil {
+		_ = keyOut.Close()
+		return err
+	}
+	return keyOut.Close()
+}
+
+func certificateHosts(publicHosts []string) ([]string, []net.IP) {
+	hostSet := map[string]bool{
+		"localhost": true,
+	}
+	if hostname, err := os.Hostname(); err == nil && strings.TrimSpace(hostname) != "" {
+		hostSet[strings.TrimSpace(hostname)] = true
+	}
+	for _, host := range publicHosts {
+		if value := strings.TrimSpace(host); value != "" {
+			hostSet[value] = true
+		}
+	}
+
+	ipSet := map[string]bool{
+		"127.0.0.1": true,
+		"::1":       true,
+	}
+	dnsNames := make([]string, 0, len(hostSet))
+	for host := range hostSet {
+		if ip := net.ParseIP(host); ip != nil {
+			ipSet[ip.String()] = true
+			continue
+		}
+		dnsNames = append(dnsNames, host)
+	}
+
+	ipAddresses := make([]net.IP, 0, len(ipSet))
+	for value := range ipSet {
+		if ip := net.ParseIP(value); ip != nil {
+			ipAddresses = append(ipAddresses, ip)
+		}
+	}
+	return dnsNames, ipAddresses
 }
 
 func apiHandlerWithMessageBusHub(messageBus *messageBusHub) http.Handler {
@@ -240,6 +527,11 @@ func writeWebSocketFrame(w *bufio.Writer, opcode byte, payload []byte) error {
 }
 
 func registerGatewayRoutes() {
+	if envBool("RT_SKIP_GATEWAY_REGISTRATION", false) {
+		log.Printf("gateway route registration skipped: disabled by RT_SKIP_GATEWAY_REGISTRATION")
+		return
+	}
+
 	var managementURL string
 	for i := 0; i < 10; i++ {
 		managementURL = gatewayManagementURL()

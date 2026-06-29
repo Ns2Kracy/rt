@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -28,6 +30,84 @@ func TestAPIHandlerHealthz(t *testing.T) {
 	}
 	if body["name"] != moduleName {
 		t.Fatalf("name = %v, want %s", body["name"], moduleName)
+	}
+}
+
+func TestLoadServerConfig(t *testing.T) {
+	t.Setenv("RT_HTTP_ADDR", ":18080")
+	t.Setenv("RT_HTTPS_ADDR", ":18443")
+	t.Setenv("RT_ENABLE_HTTPS", "true")
+	t.Setenv("RT_CERT_FILE", "/tmp/rt.crt")
+	t.Setenv("RT_KEY_FILE", "/tmp/rt.key")
+	t.Setenv("RT_AUTO_SELF_SIGNED_CERT", "false")
+	t.Setenv("RT_PUBLIC_HOSTS", "zima.local,10.0.0.85")
+	t.Setenv("RT_STATIC_DIR", "/tmp/static")
+
+	config := loadServerConfig()
+
+	if config.HTTPAddr != ":18080" {
+		t.Fatalf("HTTPAddr = %q, want :18080", config.HTTPAddr)
+	}
+	if config.HTTPSAddr != ":18443" {
+		t.Fatalf("HTTPSAddr = %q, want :18443", config.HTTPSAddr)
+	}
+	if !config.EnableHTTPS {
+		t.Fatalf("EnableHTTPS = false, want true")
+	}
+	if config.CertFile != "/tmp/rt.crt" {
+		t.Fatalf("CertFile = %q, want /tmp/rt.crt", config.CertFile)
+	}
+	if config.KeyFile != "/tmp/rt.key" {
+		t.Fatalf("KeyFile = %q, want /tmp/rt.key", config.KeyFile)
+	}
+	if config.AutoSelfSignedCert {
+		t.Fatalf("AutoSelfSignedCert = true, want false")
+	}
+	if len(config.PublicHosts) != 2 || config.PublicHosts[0] != "zima.local" || config.PublicHosts[1] != "10.0.0.85" {
+		t.Fatalf("PublicHosts = %#v, want zima.local and 10.0.0.85", config.PublicHosts)
+	}
+	if config.StaticDir != "/tmp/static" {
+		t.Fatalf("StaticDir = %q, want /tmp/static", config.StaticDir)
+	}
+}
+
+func TestEnsureTLSCertificateGeneratesFiles(t *testing.T) {
+	dir := t.TempDir()
+	config := serverConfig{
+		CertFile:           filepath.Join(dir, "nested", "rt.crt"),
+		KeyFile:            filepath.Join(dir, "nested", "rt.key"),
+		AutoSelfSignedCert: true,
+		PublicHosts:        []string{"zima.local", "10.0.0.85"},
+	}
+
+	if err := ensureTLSCertificate(config); err != nil {
+		t.Fatalf("ensureTLSCertificate returned error: %v", err)
+	}
+
+	if info, err := os.Stat(config.CertFile); err != nil || info.Size() == 0 {
+		t.Fatalf("cert file stat = (%v, %v), want non-empty file", info, err)
+	}
+	if info, err := os.Stat(config.KeyFile); err != nil || info.Size() == 0 {
+		t.Fatalf("key file stat = (%v, %v), want non-empty file", info, err)
+	}
+}
+
+func TestAppHandlerServesStaticFrontend(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html>rt frontend</html>"), 0o644); err != nil {
+		t.Fatalf("write index.html: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/modules/rt/index.html", nil)
+	rec := httptest.NewRecorder()
+
+	appHandler(dir).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body: %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "rt frontend") {
+		t.Fatalf("body = %q, want frontend content", rec.Body.String())
 	}
 }
 

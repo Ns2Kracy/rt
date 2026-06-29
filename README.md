@@ -50,6 +50,46 @@ go test ./...
 bash scripts/build-raw.sh
 ```
 
+## Docker
+
+This project can run as a standalone Docker service. The container builds the
+Solid/Vite frontend, serves it from the Go process, and enables self-signed
+HTTPS by default:
+
+```bash
+docker compose up --build
+```
+
+Open:
+
+```text
+https://127.0.0.1:49322/modules/rt/index.html
+```
+
+The certificate is self-signed, so the browser will ask you to trust it before
+microphone access works. HTTP is still exposed at:
+
+```text
+http://127.0.0.1:49321/modules/rt/index.html
+```
+
+Useful runtime environment variables:
+
+```text
+RT_HTTP_ADDR=:49321
+RT_ENABLE_HTTPS=true
+RT_HTTPS_ADDR=:49322
+RT_CERT_FILE=/data/certs/rt.crt
+RT_KEY_FILE=/data/certs/rt.key
+RT_AUTO_SELF_SIGNED_CERT=true
+RT_PUBLIC_HOSTS=localhost,127.0.0.1
+RT_STATIC_DIR=/app/static
+RT_SKIP_GATEWAY_REGISTRATION=true
+```
+
+`RT_PUBLIC_HOSTS` should include the LAN IP or DNS name you use in the browser
+if you do not open the app through localhost.
+
 Deploy to a ZimaOS box and verify the mounted `/usr` tree:
 
 ```bash

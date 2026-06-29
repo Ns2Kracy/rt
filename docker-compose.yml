@@ -1,0 +1,21 @@
+services:
+  rt:
+    build: .
+    ports:
+      - "49321:49321"
+      - "49322:49322"
+    environment:
+      RT_HTTP_ADDR: ":49321"
+      RT_ENABLE_HTTPS: "true"
+      RT_HTTPS_ADDR: ":49322"
+      RT_AUTO_SELF_SIGNED_CERT: "true"
+      RT_CERT_FILE: "/data/certs/rt.crt"
+      RT_KEY_FILE: "/data/certs/rt.key"
+      RT_STATIC_DIR: "/app/static"
+      RT_SKIP_GATEWAY_REGISTRATION: "true"
+      RT_PUBLIC_HOSTS: "localhost,127.0.0.1"
+    volumes:
+      - rt-data:/data
+
+volumes:
+  rt-data:

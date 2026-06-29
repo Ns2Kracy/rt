@@ -1,13 +1,16 @@
 import {
   AlertTriangle,
   Activity,
+  CircleStop,
   KeyRound,
   LogIn,
   LogOut,
+  Mic,
   Pause,
   PlugZap,
   Play,
   RefreshCw,
+  RotateCcw,
   Search,
   Send,
   ShieldCheck,
@@ -47,7 +50,8 @@ type AuthStatus = 'checking' | 'authenticated' | 'missing' | 'redirecting'
 type SocketState = 'closed' | 'connecting' | 'open' | 'error'
 type UpdateState = 'checking' | 'available' | 'current'
 type MessageBusStreamState = 'closed' | 'connecting' | 'open' | 'error'
-type WorkspaceView = 'message-bus' | 'session' | 'probe'
+type RecorderState = 'idle' | 'requesting' | 'recording' | 'ready' | 'unsupported' | 'error'
+type WorkspaceView = 'message-bus' | 'recorder' | 'session' | 'probe'
 
 function StatusPill(props: { status: AuthStatus }) {
   const label = createMemo(() => {
@@ -109,6 +113,44 @@ function severityClass(severity: MessageBusSeverity): string {
   }
 }
 
+function formatDuration(totalSeconds: number): string {
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+function recorderStateLabel(state: RecorderState): string {
+  switch (state) {
+    case 'requesting':
+      return 'Requesting microphone'
+    case 'recording':
+      return 'Recording'
+    case 'ready':
+      return 'Ready to play'
+    case 'unsupported':
+      return 'Unavailable'
+    case 'error':
+      return 'Error'
+    default:
+      return 'Idle'
+  }
+}
+
+function preferredRecordingMimeType(): string {
+  if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) {
+    return ''
+  }
+
+  const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']
+  return candidates.find(candidate => MediaRecorder.isTypeSupported(candidate)) ?? ''
+}
+
 export default function App() {
   const config = window.DEMO_CONFIG ?? {}
   const [authRevision, setAuthRevision] = createSignal(0)
@@ -124,10 +166,21 @@ export default function App() {
   const [messageBusErrorsOnly, setMessageBusErrorsOnly] = createSignal(false)
   const [messageBusPaused, setMessageBusPaused] = createSignal(false)
   const [selectedMessageBusEventID, setSelectedMessageBusEventID] = createSignal('')
+  const [recorderState, setRecorderState] = createSignal<RecorderState>('idle')
+  const [recorderError, setRecorderError] = createSignal('')
+  const [recordingSeconds, setRecordingSeconds] = createSignal(0)
+  const [recordingURL, setRecordingURL] = createSignal('')
+  const [recordingSize, setRecordingSize] = createSignal(0)
+  const [recordingMimeType, setRecordingMimeType] = createSignal('')
   const [activeWorkspace, setActiveWorkspace] = createSignal<WorkspaceView>('message-bus')
 
   let socket: WebSocket | null = null
   let messageBusSource: EventSource | null = null
+  let mediaRecorder: MediaRecorder | null = null
+  let recorderStream: MediaStream | null = null
+  let recorderChunks: BlobPart[] = []
+  let recorderTimer: ReturnType<typeof setInterval> | null = null
+  let recorderStartedAt = 0
 
   const client = createAPIClient(() => {
     setAuthStatus('missing')
@@ -178,8 +231,15 @@ export default function App() {
     const latest = messageBusEvents()[0]
     return latest ? formatMessageBusTime(latest) : 'none'
   })
+  const recorderStatusText = createMemo(() => {
+    if (recorderError()) return recorderError()
+    if (recorderState() === 'recording') return `Recording ${formatDuration(recordingSeconds())}`
+    if (recorderState() === 'ready') return `${formatDuration(recordingSeconds())} / ${formatBytes(recordingSize())}`
+    return recorderStateLabel(recorderState())
+  })
   const workspaceItems = [
     { id: 'message-bus', label: 'Message Bus', icon: Activity },
+    { id: 'recorder', label: 'Recorder', icon: Mic },
     { id: 'session', label: 'Session', icon: KeyRound },
     { id: 'probe', label: 'Probe', icon: Wifi },
   ] as const
@@ -199,6 +259,7 @@ export default function App() {
 
   onSettled(() => {
     captureTokensFromCurrentURL()
+    initializeRecorderSupport()
     void loadTargetVersion()
     connectMessageBusStream()
 
@@ -222,8 +283,152 @@ export default function App() {
     return () => {
       socket?.close()
       messageBusSource?.close()
+      disposeRecorder()
     }
   })
+
+  function initializeRecorderSupport() {
+    if (!window.isSecureContext) {
+      setRecorderState('unsupported')
+      setRecorderError('Open the app over HTTPS to use the microphone.')
+      return
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setRecorderState('unsupported')
+      setRecorderError('This browser does not support in-page audio recording.')
+      return
+    }
+
+    setRecorderState('idle')
+    setRecorderError('')
+  }
+
+  function clearRecorderTimer() {
+    if (recorderTimer) {
+      clearInterval(recorderTimer)
+      recorderTimer = null
+    }
+  }
+
+  function stopRecorderStream() {
+    recorderStream?.getTracks().forEach(track => track.stop())
+    recorderStream = null
+  }
+
+  function revokeRecordingURL() {
+    const url = recordingURL()
+    if (url) {
+      URL.revokeObjectURL(url)
+      setRecordingURL('')
+    }
+  }
+
+  function resetRecording() {
+    revokeRecordingURL()
+    setRecordingSeconds(0)
+    setRecordingSize(0)
+    setRecordingMimeType('')
+    setRecorderError('')
+    setRecorderState('idle')
+  }
+
+  function disposeRecorder() {
+    clearRecorderTimer()
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.onstop = null
+      mediaRecorder.stop()
+    }
+    mediaRecorder = null
+    stopRecorderStream()
+    revokeRecordingURL()
+  }
+
+  async function startRecording() {
+    if (recorderState() === 'unsupported') {
+      return
+    }
+
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      initializeRecorderSupport()
+      return
+    }
+
+    try {
+      clearRecorderTimer()
+      revokeRecordingURL()
+      setRecorderError('')
+      setRecordingSize(0)
+      setRecordingSeconds(0)
+      setRecordingMimeType('')
+      setRecorderState('requesting')
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      recorderStream = stream
+      recorderChunks = []
+
+      const mimeType = preferredRecordingMimeType()
+      const options = mimeType ? { mimeType } : undefined
+      mediaRecorder = new MediaRecorder(stream, options)
+
+      mediaRecorder.ondataavailable = event => {
+        if (event.data.size > 0) {
+          recorderChunks.push(event.data)
+        }
+      }
+
+      mediaRecorder.onerror = () => {
+        clearRecorderTimer()
+        stopRecorderStream()
+        setRecorderState('error')
+        setRecorderError('Recording failed. Check microphone permissions and try again.')
+      }
+
+      mediaRecorder.onstop = () => {
+        clearRecorderTimer()
+        stopRecorderStream()
+
+        const blobType = mediaRecorder?.mimeType || mimeType || 'audio/webm'
+        const blob = new Blob(recorderChunks, { type: blobType })
+        recorderChunks = []
+
+        if (blob.size === 0) {
+          setRecorderState('error')
+          setRecorderError('The recording was empty.')
+          return
+        }
+
+        setRecordingURL(URL.createObjectURL(blob))
+        setRecordingSize(blob.size)
+        setRecordingMimeType(blob.type)
+        setRecorderState('ready')
+      }
+
+      recorderStartedAt = Date.now()
+      recorderTimer = setInterval(() => {
+        setRecordingSeconds(Math.floor((Date.now() - recorderStartedAt) / 1000))
+      }, 250)
+      mediaRecorder.start()
+      setRecorderState('recording')
+    }
+    catch {
+      clearRecorderTimer()
+      stopRecorderStream()
+      setRecorderState('error')
+      setRecorderError('Microphone access was denied or unavailable.')
+    }
+  }
+
+  function stopRecording() {
+    clearRecorderTimer()
+    if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+      stopRecorderStream()
+      return
+    }
+
+    setRecordingSeconds(Math.max(1, Math.floor((Date.now() - recorderStartedAt) / 1000)))
+    mediaRecorder.stop()
+  }
 
   function redirectToLogin() {
     window.location.href = loginURL() || buildLoginURL(window.location.href, config)
@@ -415,7 +620,7 @@ export default function App() {
             </div>
           </header>
 
-          <nav class="grid grid-cols-3 gap-2 border-b border-slate-200 bg-white px-4 py-3 sm:px-6 lg:hidden" aria-label="Workspace">
+          <nav class="grid grid-cols-2 gap-2 border-b border-slate-200 bg-white px-4 py-3 sm:grid-cols-4 sm:px-6 lg:hidden" aria-label="Workspace">
             <For each={workspaceItems}>
               {item => (
                 <button
@@ -608,6 +813,100 @@ export default function App() {
                       )}
                     </Show>
                   </div>
+                </div>
+              </section>
+            </Show>
+
+            <Show when={activeWorkspace() === 'recorder'}>
+              <section class="max-w-4xl rounded-lg border border-slate-200 bg-white p-4">
+                <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <div class="flex items-center gap-2">
+                      <Icon icon={Mic} class="h-5 w-5 text-teal-700" />
+                      <h3 class="text-base font-semibold text-slate-950">Audio Recorder</h3>
+                    </div>
+                    <p class="mt-1 text-sm text-slate-600" aria-live="polite">
+                      {recorderStatusText()}
+                    </p>
+                  </div>
+                  <span
+                    class={[
+                      'inline-flex h-7 items-center rounded-md border px-2.5 text-xs font-semibold',
+                      {
+                        'border-emerald-200 bg-emerald-50 text-emerald-800': recorderState() === 'ready',
+                        'border-red-200 bg-red-50 text-red-800': recorderState() === 'error' || recorderState() === 'unsupported',
+                        'border-teal-200 bg-teal-50 text-teal-900': recorderState() === 'recording' || recorderState() === 'requesting',
+                        'border-slate-200 bg-slate-50 text-slate-700': recorderState() === 'idle',
+                      },
+                    ]}
+                  >
+                    {recorderStateLabel(recorderState())}
+                  </span>
+                </div>
+
+                <div class="mt-4 grid gap-3 sm:grid-cols-3">
+                  <div class="rounded-md border border-slate-200 bg-slate-50 p-3">
+                    <div class="text-xs font-medium text-slate-500">Duration</div>
+                    <div class="mt-1 font-mono text-lg font-semibold text-slate-950">{formatDuration(recordingSeconds())}</div>
+                  </div>
+                  <div class="rounded-md border border-slate-200 bg-slate-50 p-3">
+                    <div class="text-xs font-medium text-slate-500">Size</div>
+                    <div class="mt-1 font-mono text-lg font-semibold text-slate-950">{recordingSize() ? formatBytes(recordingSize()) : 'none'}</div>
+                  </div>
+                  <div class="rounded-md border border-slate-200 bg-slate-50 p-3">
+                    <div class="text-xs font-medium text-slate-500">Format</div>
+                    <div class="mt-1 truncate font-mono text-lg font-semibold text-slate-950">{recordingMimeType() || 'pending'}</div>
+                  </div>
+                </div>
+
+                <div class="mt-4 flex flex-wrap gap-2">
+                  <button
+                    class="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-teal-700 px-3.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600 focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 focus:outline-none"
+                    type="button"
+                    disabled={recorderState() === 'recording' || recorderState() === 'requesting' || recorderState() === 'unsupported'}
+                    onClick={startRecording}
+                  >
+                    <Icon icon={Mic} class="h-4 w-4" />
+                    Record
+                  </button>
+                  <button
+                    class="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3.5 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:outline-none"
+                    type="button"
+                    disabled={recorderState() !== 'recording'}
+                    onClick={stopRecording}
+                  >
+                    <Icon icon={CircleStop} class="h-4 w-4" />
+                    Stop
+                  </button>
+                  <button
+                    class="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3.5 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:outline-none"
+                    type="button"
+                    disabled={!recordingURL() && recorderState() !== 'error'}
+                    onClick={resetRecording}
+                  >
+                    <Icon icon={RotateCcw} class="h-4 w-4" />
+                    Reset
+                  </button>
+                </div>
+
+                <div class="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
+                  <Show
+                    when={recordingURL()}
+                    fallback={
+                      <div class="flex min-h-28 flex-col items-center justify-center gap-2 px-4 text-center text-sm text-slate-500">
+                        <Icon icon={Mic} class="h-5 w-5 text-slate-400" />
+                        No recording available
+                      </div>
+                    }
+                  >
+                    {url => (
+                      <audio
+                        class="h-11 w-full"
+                        controls
+                        src={url()}
+                      />
+                    )}
+                  </Show>
                 </div>
               </section>
             </Show>

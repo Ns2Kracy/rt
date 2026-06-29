@@ -1,0 +1,11 @@
+.git
+.cache
+data
+docs
+rt.raw
+web/node_modules
+web/static
+Dockerfile
+docker-compose.yml
+*.log
+.DS_Store
