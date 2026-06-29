@@ -90,6 +90,38 @@ RT_SKIP_GATEWAY_REGISTRATION=true
 `RT_PUBLIC_HOSTS` should include the LAN IP or DNS name you use in the browser
 if you do not open the app through localhost.
 
+## GHCR Image
+
+The repository publishes a container image to GitHub Container Registry from
+`.github/workflows/publish-image.yml` on pushes to `main`, `v*` tags, and manual
+workflow runs.
+
+Image name:
+
+```text
+ghcr.io/ns2kracy/rt
+```
+
+Common tags:
+
+```text
+latest
+main
+v1.0.1
+sha-<commit>
+```
+
+Pull and run the published image:
+
+```bash
+docker pull ghcr.io/ns2kracy/rt:latest
+docker run --rm \
+  -p 49321:49321 \
+  -p 49322:49322 \
+  -v rt-data:/data \
+  ghcr.io/ns2kracy/rt:latest
+```
+
 Deploy to a ZimaOS box and verify the mounted `/usr` tree:
 
 ```bash

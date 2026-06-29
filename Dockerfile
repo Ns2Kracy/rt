@@ -15,6 +15,9 @@ COPY *.go ./
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/rt .
 
 FROM alpine:3.20
+LABEL org.opencontainers.image.source="https://github.com/Ns2Kracy/rt" \
+  org.opencontainers.image.description="Mod Management Playground with HTTPS recorder"
+
 RUN apk add --no-cache ca-certificates \
   && adduser -D -H -u 10001 rt \
   && mkdir -p /app/static /data \
